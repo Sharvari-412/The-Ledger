@@ -291,6 +291,7 @@ export default function Ledger({ session }) {
             max={todayISO()}
             onChange={(e) => setEntryDate(e.target.value)}
           />
+          {entryDate && <span className="date-preview">{formatDate(entryDate)}</span>}
         </div>
       </div>
 
@@ -345,6 +346,7 @@ export default function Ledger({ session }) {
                 min={todayISO()}
                 onChange={(e) => setGoalDeadline(e.target.value)}
               />
+              {goalDeadline && <span className="date-preview">{formatDate(goalDeadline)}</span>}
             </div>
             <button onClick={createGoal}>Set goal</button>
           </div>
