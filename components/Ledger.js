@@ -37,6 +37,90 @@ function daysUntil(dateStr) {
   return Math.round((target - today) / 86400000);
 }
 
+function isoToDDMMYYYY(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function ddmmyyyyToISO(str) {
+  const match = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, dd, mm, yyyy] = match;
+  const day = parseInt(dd, 10);
+  const month = parseInt(mm, 10);
+  const year = parseInt(yyyy, 10);
+  if (month < 1 || month > 12) return null;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  if (day < 1 || day > daysInMonth) return null;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * A plain-text date field that ALWAYS displays dd/mm/yyyy, regardless of the
+ * browser's or OS's locale — unlike a native <input type="date">, whose
+ * placeholder and layout follow system settings and can't be overridden.
+ * Type digits and slashes are inserted automatically: "20072026" -> "20/07/2026".
+ * `value`/`onChange` still speak ISO ("YYYY-MM-DD") so the rest of the app
+ * doesn't need to know this is happening.
+ */
+function DateInputDDMMYYYY({ id, value, onChange, max, min, placeholder = 'dd/mm/yyyy' }) {
+  const [text, setText] = useState(value ? isoToDDMMYYYY(value) : '');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setText(value ? isoToDDMMYYYY(value) : '');
+  }, [value]);
+
+  function handleChange(e) {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 4) formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    else if (digits.length > 2) formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    setText(formatted);
+
+    if (formatted.length < 10) {
+      setError('');
+      onChange('');
+      return;
+    }
+
+    const iso = ddmmyyyyToISO(formatted);
+    if (!iso) {
+      setError('Not a valid date');
+      onChange('');
+      return;
+    }
+    if (max && iso > max) {
+      setError("Can't be in the future");
+      onChange('');
+      return;
+    }
+    if (min && iso < min) {
+      setError("Can't be before today");
+      onChange('');
+      return;
+    }
+    setError('');
+    onChange(iso);
+  }
+
+  return (
+    <div className="dd-date-input">
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        placeholder={placeholder}
+        value={text}
+        maxLength={10}
+        onChange={handleChange}
+      />
+      {error && <span className="dd-date-error">{error}</span>}
+    </div>
+  );
+}
+
 export default function Ledger({ session }) {
   const user = session.user;
 
@@ -284,14 +368,12 @@ export default function Ledger({ session }) {
         </div>
         <div className="date-row">
           <label htmlFor="entryDateInput">Date (optional — defaults to today)</label>
-          <input
+          <DateInputDDMMYYYY
             id="entryDateInput"
-            type="date"
             value={entryDate}
+            onChange={setEntryDate}
             max={todayISO()}
-            onChange={(e) => setEntryDate(e.target.value)}
           />
-          {entryDate && <span className="date-preview">{formatDate(entryDate)}</span>}
         </div>
       </div>
 
@@ -339,14 +421,12 @@ export default function Ledger({ session }) {
             />
             <div className="goal-date-field">
               <label htmlFor="goalDeadlineInput">Save by (optional)</label>
-              <input
+              <DateInputDDMMYYYY
                 id="goalDeadlineInput"
-                type="date"
                 value={goalDeadline}
+                onChange={setGoalDeadline}
                 min={todayISO()}
-                onChange={(e) => setGoalDeadline(e.target.value)}
               />
-              {goalDeadline && <span className="date-preview">{formatDate(goalDeadline)}</span>}
             </div>
             <button onClick={createGoal}>Set goal</button>
           </div>
