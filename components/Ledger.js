@@ -14,6 +14,33 @@ const money = (n) => {
   return sign + inrFormatter.format(Math.abs(n));
 };
 
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  // dateStr is 'YYYY-MM-DD' — parse as local date, not UTC, to avoid off-by-one day
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+function formatDateLong(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const target = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target - today) / 86400000);
+}
+
 export default function Ledger({ session }) {
   const user = session.user;
 
@@ -25,10 +52,12 @@ export default function Ledger({ session }) {
   const [currentType, setCurrentType] = useState('expense');
   const [desc, setDesc] = useState('');
   const [amt, setAmt] = useState('');
+  const [entryDate, setEntryDate] = useState(''); // optional — blank means "today"
 
   const [startInput, setStartInput] = useState('');
   const [goalName, setGoalName] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
+  const [goalDeadline, setGoalDeadline] = useState(''); // optional
   const [contributeAmt, setContributeAmt] = useState('');
 
   useEffect(() => {
@@ -40,7 +69,11 @@ export default function Ledger({ session }) {
     setLoading(true);
 
     const [entriesRes, goalRes, settingsRes] = await Promise.all([
-      supabase.from('entries').select('*').order('created_at', { ascending: true }),
+      supabase
+        .from('entries')
+        .select('*')
+        .order('transaction_date', { ascending: true })
+        .order('created_at', { ascending: true }),
       supabase.from('goals').select('*').order('created_at', { ascending: false }).limit(1),
       supabase.from('settings').select('*').eq('user_id', user.id).maybeSingle(),
     ]);
@@ -69,17 +102,27 @@ export default function Ledger({ session }) {
     if (isNaN(amount) || amount <= 0) return;
 
     const description = desc.trim() || (currentType === 'expense' ? 'Untitled expense' : 'Untitled income');
+    const transaction_date = entryDate || todayISO();
 
     const { data, error } = await supabase
       .from('entries')
-      .insert({ user_id: user.id, description, amount, type: currentType })
+      .insert({ user_id: user.id, description, amount, type: currentType, transaction_date })
       .select()
       .single();
 
     if (!error && data) {
-      setEntries((prev) => [...prev, data]);
+      // keep the list sorted by transaction_date after inserting a possibly-backdated entry
+      setEntries((prev) =>
+        [...prev, data].sort((a, b) => {
+          if (a.transaction_date !== b.transaction_date) {
+            return a.transaction_date < b.transaction_date ? -1 : 1;
+          }
+          return new Date(a.created_at) - new Date(b.created_at);
+        })
+      );
       setDesc('');
       setAmt('');
+      setEntryDate('');
     }
   }
 
@@ -93,10 +136,11 @@ export default function Ledger({ session }) {
     if (isNaN(target) || target <= 0) return;
 
     const name = goalName.trim() || 'Savings goal';
+    const deadline = goalDeadline || null;
 
     const { data, error } = await supabase
       .from('goals')
-      .insert({ user_id: user.id, name, target, saved: 0 })
+      .insert({ user_id: user.id, name, target, saved: 0, deadline })
       .select()
       .single();
 
@@ -104,6 +148,7 @@ export default function Ledger({ session }) {
       setGoal(data);
       setGoalName('');
       setGoalTarget('');
+      setGoalDeadline('');
     }
   }
 
@@ -129,19 +174,23 @@ export default function Ledger({ session }) {
     await supabase.auth.signOut();
   }
 
-  let running = startingBalance;
+  // ---- Derived values ----
+  let currentBalance = startingBalance;
   let totalIn = 0;
   let totalOut = 0;
   const rows = entries.map((e, i) => {
-    const signedAmt = e.type === 'income' ? Number(e.amount) : -Number(e.amount);
-    running += signedAmt;
     if (e.type === 'income') totalIn += Number(e.amount);
     else totalOut += Number(e.amount);
-    return { ...e, index: i + 1, runningBalance: running };
+    return { ...e, index: i + 1 };
   });
+  currentBalance = startingBalance + totalIn - totalOut;
+
+  const totalSaved = goal ? Number(goal.saved) : 0;
+  const availableToSpend = currentBalance - totalSaved;
 
   const goalPct = goal ? Math.min(100, (Number(goal.saved) / Number(goal.target)) * 100) : 0;
   const goalRemaining = goal ? Number(goal.target) - Number(goal.saved) : 0;
+  const goalDaysLeft = goal && goal.deadline ? daysUntil(goal.deadline) : null;
 
   if (loading) {
     return <div className="loading-state">Loading your ledger…</div>;
@@ -160,14 +209,31 @@ export default function Ledger({ session }) {
         <button onClick={handleSignOut}>Sign out</button>
       </div>
 
+      {/* Balance */}
       <div className="balance-card">
         <div className="label">Current Balance</div>
-        <div className={`amount ${running < 0 ? 'negative' : 'positive'}`}>{money(running)}</div>
+        <div className={`amount ${currentBalance < 0 ? 'negative' : 'positive'}`}>{money(currentBalance)}</div>
         <div className="balance-meta">
           <span>In: <b>{money(totalIn)}</b></span>
           <span>Out: <b>{money(totalOut)}</b></span>
           <span>Entries: <b>{entries.length}</b></span>
         </div>
+
+        {totalSaved > 0 && (
+          <div className="balance-split">
+            <div className="split-row">
+              <span className="split-label">Set aside for savings</span>
+              <span className="split-value savings">{money(totalSaved)}</span>
+            </div>
+            <div className="split-row">
+              <span className="split-label">Available to spend</span>
+              <span className={`split-value ${availableToSpend < 0 ? 'negative' : 'available'}`}>
+                {money(availableToSpend)}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="start-row">
           <span>Starting balance (₹)</span>
           <input
@@ -181,6 +247,7 @@ export default function Ledger({ session }) {
         </div>
       </div>
 
+      {/* Add entry */}
       <div className="entry-form">
         <h2>Add an entry</h2>
         <div className="toggle-row">
@@ -219,8 +286,19 @@ export default function Ledger({ session }) {
           />
           <button className="add-btn" onClick={addEntry}>Add</button>
         </div>
+        <div className="date-row">
+          <label htmlFor="entryDateInput">Date (optional — defaults to today)</label>
+          <input
+            id="entryDateInput"
+            type="date"
+            value={entryDate}
+            max={todayISO()}
+            onChange={(e) => setEntryDate(e.target.value)}
+          />
+        </div>
       </div>
 
+      {/* Ledger rows */}
       <div className="ledger-section">
         <h2>Transactions</h2>
         <div className="ledger-rows">
@@ -231,10 +309,10 @@ export default function Ledger({ session }) {
               <div className="ledger-row" key={e.id}>
                 <span className="idx">{String(e.index).padStart(2, '0')}</span>
                 <span className="desc">{e.description}</span>
+                <span className="date">{formatDate(e.transaction_date)}</span>
                 <span className={`delta ${e.type === 'income' ? 'in' : 'out'}`}>
                   {e.type === 'income' ? '+' : '−'}{money(Number(e.amount))}
                 </span>
-                <span className="running">{money(e.runningBalance)}</span>
                 <button className="del" onClick={() => deleteEntry(e.id)} title="Remove">✕</button>
               </div>
             ))
@@ -242,6 +320,7 @@ export default function Ledger({ session }) {
         </div>
       </div>
 
+      {/* Savings goal */}
       <div className="goal-card">
         <h2>Savings Goal</h2>
         <div className="goal-sub">Set a target and track your progress</div>
@@ -261,6 +340,16 @@ export default function Ledger({ session }) {
               value={goalTarget}
               onChange={(e) => setGoalTarget(e.target.value)}
             />
+            <div className="goal-date-field">
+              <label htmlFor="goalDeadlineInput">Save by (optional)</label>
+              <input
+                id="goalDeadlineInput"
+                type="date"
+                value={goalDeadline}
+                min={todayISO()}
+                onChange={(e) => setGoalDeadline(e.target.value)}
+              />
+            </div>
             <button onClick={createGoal}>Set goal</button>
           </div>
         ) : (
@@ -286,6 +375,22 @@ export default function Ledger({ session }) {
                 ? `🎉 Goal reached! You saved ${money(Number(goal.saved))}.`
                 : <>Still need <b>{money(goalRemaining)}</b> to reach your goal.</>}
             </div>
+
+            {goal.deadline && (
+              <div className={`goal-deadline ${goalDaysLeft < 0 && goalRemaining > 0 ? 'overdue' : ''}`}>
+                Target date: <b>{formatDateLong(goal.deadline)}</b>
+                {goalRemaining > 0 && goalDaysLeft !== null && (
+                  <>
+                    {' — '}
+                    {goalDaysLeft > 0
+                      ? `${goalDaysLeft} day${goalDaysLeft === 1 ? '' : 's'} left`
+                      : goalDaysLeft === 0
+                      ? 'due today'
+                      : `overdue by ${Math.abs(goalDaysLeft)} day${Math.abs(goalDaysLeft) === 1 ? '' : 's'}`}
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="contribute-row">
               <input

@@ -98,6 +98,17 @@ body{
 .balance-meta{ display:flex; gap: 22px; margin-top: 14px; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-soft); flex-wrap: wrap; }
 .balance-meta span b{ color: var(--ink); font-weight: 600; }
 
+.balance-split{
+  margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line-strong);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.split-row{ display:flex; justify-content: space-between; align-items: baseline; }
+.split-label{ font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.5px; color: var(--ink-soft); text-transform: uppercase; }
+.split-value{ font-family: var(--font-mono); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.split-value.savings{ color: var(--brass); }
+.split-value.available{ color: var(--ink); }
+.split-value.negative{ color: var(--rust); }
+
 .start-row{ display:flex; align-items:center; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line-strong); font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-soft); flex-wrap: wrap; }
 .start-row input{ width: 110px; background: transparent; border: none; border-bottom: 1px solid var(--line-strong); font-family: var(--font-mono); font-size: 13px; color: var(--ink); padding: 2px 4px; }
 .start-row input:focus{ outline: none; border-bottom-color: var(--ink); }
@@ -121,16 +132,23 @@ body{
 .form-row button.add-btn{ font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 1px; text-transform: uppercase; padding: 10px 18px; background: var(--ink); color: var(--card); border: none; cursor: pointer; }
 .form-row button.add-btn:hover{ background: var(--ink-soft); }
 
+.date-row{ display:flex; align-items:center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.date-row label{ font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); letter-spacing: 0.3px; }
+.date-row input[type="date"]{
+  font-family: var(--font-mono); font-size: 12.5px; padding: 6px 8px;
+  border: 1px solid var(--line-strong); background: #fff; color: var(--ink);
+}
+
 /* ---- Ledger list ---- */
 .ledger-section h2{ font-family: var(--font-serif); font-size: 16px; font-weight: 600; margin-bottom: 10px; }
 .ledger-rows{ border-top: 1px solid var(--line-strong); }
 .ledger-row{ display: grid; grid-template-columns: 26px 1fr auto auto auto; gap: 12px; align-items: baseline; padding: 12px 4px; border-bottom: 1px dotted var(--line-strong); font-size: 14px; }
 .ledger-row .idx{ font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
 .ledger-row .desc{ color: var(--ink); }
+.ledger-row .date{ font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-soft); text-align: right; white-space: nowrap; }
 .ledger-row .delta{ font-family: var(--font-mono); font-size: 14px; font-variant-numeric: tabular-nums; text-align: right; min-width: 78px; }
 .ledger-row .delta.out{ color: var(--rust); }
 .ledger-row .delta.in{ color: var(--brass); }
-.ledger-row .running{ font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); text-align: right; min-width: 74px; }
 .ledger-row .del{ background:none; border:none; cursor:pointer; color: var(--line-strong); font-size: 14px; padding: 0 2px; }
 .ledger-row .del:hover{ color: var(--rust); }
 .ledger-row:hover{ background: rgba(75,93,79,0.05); }
@@ -169,9 +187,20 @@ body{
 
 .footer-note{ text-align:center; margin-top: 30px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); letter-spacing: 0.5px; }
 
+.goal-date-field{ display:flex; flex-direction:column; gap:4px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); flex: 1; min-width: 140px; }
+.goal-date-field input[type="date"]{
+  font-family: var(--font-mono); font-size: 13px; padding: 9px 10px;
+  border: 1px solid var(--line-strong); background: #fff; color: var(--ink);
+}
+
+.goal-deadline{ font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
+.goal-deadline b{ color: var(--ink); }
+.goal-deadline.overdue{ color: var(--rust); }
+.goal-deadline.overdue b{ color: var(--rust); }
+
 @media (max-width: 480px){
   .masthead h1{ font-size: 32px; }
   .balance-card .amount{ font-size: 38px; }
   .ledger-row{ grid-template-columns: 20px 1fr auto auto; }
-  .ledger-row .running{ display:none; }
+  .ledger-row .date{ display:none; }
 }
