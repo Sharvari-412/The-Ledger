@@ -18,17 +18,13 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  // dateStr is 'YYYY-MM-DD' — parse as local date, not UTC, to avoid off-by-one day
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  // dateStr is already 'YYYY-MM-DD' from the date input — just rearrange it.
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
 }
 
 function formatDateLong(dateStr) {
-  if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDate(dateStr); // dd/mm/yyyy works fine as the "long" form too
 }
 
 function daysUntil(dateStr) {
